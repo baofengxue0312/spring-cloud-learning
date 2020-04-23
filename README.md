@@ -38,7 +38,7 @@ CP：Zookeeper、Consul
 |  Consul   |  Go  |  CP  |     支持     |   HTTP/DNS   |     已集成      |
 | Zookeeper | Java |  CP  |     支持     |    客户端    |     已集成      |
 
-# 服务调用
+# 服务调用-Ribbon
 
 ## Ribbon 负载均衡
 
@@ -157,5 +157,62 @@ private int incrementAndGetModulo(int modulo) {
 
     return next;
 }
+```
+
+# 服务调用-OpenFeign
+
+[Spring Cloud OpenFeign 官方文档](https://cloud.spring.io/spring-cloud-openfeign/2.2.x/reference/html/#spring-cloud-feign)
+
+## Feign是什么？
+
+Feign是一个声明式WebService客户端。使用Feign能让编写WebService变得更加简单。它的使用方式是**定义一个服务接口**然后在上面**添加注解**。Feign也支持可插拔式的编码器和解码器。Spring Cloud对Feign进行了封装，使其支持Spring MVC标准注解和HttpMessageConverters。Feign可与Eureka和Ribbon组合使用支持负载均衡。
+
+## Feign能干什么？
+
+Feign旨在使用JavaHttp客户端变得更加容易。
+
+以往使用`Ribbon+RestTemplate`，利用`RestTemplate`对HTTP请求的封装处理，形成了一套模板化的调用方法。但是在实际开发中，由于对服务依赖的调用可能不止一处，往往一个接口会被多处调用，所以通常会针对每个微服务自行封装一些客户端类库来包装这些依赖服务的调用。所以Feign在此基础上做了进一步封装，来帮助我们定义和实现依赖服务接口的定义。在Feign的实现下，通过注解即可完成对服务提供方的接口绑定。并且集成了`Ribbon`.
+
+## Feign与OpenFeign
+
+|   名称    |                             简介                             |
+| :-------: | :----------------------------------------------------------: |
+|   Feign   | SpringCloud组件中的一个轻量级RESTful的HTTP客户服务端，内置了Ribbon，用来做客户端负载均衡，去调用服务注册中心的服务。利用Feign的注解定义接口，调用这个接口，就可以调用服务注册中心的服务。 |
+| OpenFeign | 在Feign的基础上支持了Spring MVC的注解。使用`@FeignClint`可以解析Spring MVC的`@RequestMapping`下的接口，并通过动态代理的方式产生实现类，实现类中做负载均衡并调用其他服务。 |
+
+## OpenFeign超时控制
+
+默认1s，超时报错，可通过 `application.yml` 修改
+
+```yaml
+# 设置feign 客户端超时时间（openFeign默认支持ribbon）
+ribbon:
+  # 指的是建立连接所用的时间，适用于网络状况正常的情况下，两端连接所用的时间
+  ReadTimeout: 5000
+  # 指的是建立连接后从服务器读取到可用资源所用的时间
+  ConnectTimeout: 5000     
+```
+
+## OpenFeign日志打印功能
+
+创建配置类
+
+```java
+@Configuration
+public class FeignConfig {
+    @Bean
+    Logger.Level feignLoggerLevel() {
+        return Logger.Level.FULL;
+    }
+}
+```
+
+修改配置文件 `application.yml`
+
+```yaml
+logging:
+  level:
+    # feign日志以什么级别监控哪个接口
+    edu.dlut.springcloud.service.PaymentFeignService: debug
 ```
 
