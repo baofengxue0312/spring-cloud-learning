@@ -38,7 +38,7 @@ CP：Zookeeper、Consul
 |  Consul   |  Go  |  CP  |     支持     |   HTTP/DNS   |     已集成      |
 | Zookeeper | Java |  CP  |     支持     |    客户端    |     已集成      |
 
-# 服务调用-Ribbon
+# 服务调用-Ribbon篇
 
 ## Ribbon 负载均衡
 
@@ -159,7 +159,7 @@ private int incrementAndGetModulo(int modulo) {
 }
 ```
 
-# 服务调用-OpenFeign
+# 服务调用-OpenFeign篇
 
 [Spring Cloud OpenFeign 官方文档](https://cloud.spring.io/spring-cloud-openfeign/2.2.x/reference/html/#spring-cloud-feign)
 
@@ -214,5 +214,192 @@ logging:
   level:
     # feign日志以什么级别监控哪个接口
     edu.dlut.springcloud.service.PaymentFeignService: debug
+```
+
+# 服务降级-Hystrix篇
+
+## 概述
+
+[Hystrix GitHub官方文档](https://github.com/Netflix/Hystrix/wiki)
+
+Hystrix是Netflix开源的一款容错框架，包含常用的容错方法：线程池隔离、信号量隔离、熔断、降级回退。在高并发访问下，系统所依赖的服务的稳定性对系统的影响非常大，依赖有很多不可控的因素，比如网络连接变慢，资源突然繁忙，暂时不可用，服务脱机等。
+
+## Hystrix重要概念
+
+[服务雪崩、降级、熔断-知乎](https://zhuanlan.zhihu.com/p/59109569)
+
+|   名称   |                             描述                             |                          发生条件                           |
+| :------: | :----------------------------------------------------------: | :---------------------------------------------------------: |
+| 服务降级 | 服务器忙，请稍后再试，不让客户端等待立即返回一个友好提示,fallback | 程序运行异常、超时、服务熔断触发服务降级、线程池/信号量已满 |
+| 服务熔断 | 类比保险丝达到最大服务访问后，直接拒绝访问，拉闸限电，然后调用服务降级的方法并返回友好提示 |             服务的降级->进而熔断->恢复调用链路              |
+| 服务限流 | 秒杀高并发等操作，严禁一窝蜂的过来拥挤，大家排队，一秒钟N个。有序进行 |                                                             |
+
+## Hystrix工作流程
+
+[Hystrix技术解析-简书](https://www.jianshu.com/p/3e11ac385c73)
+
+### JMeter压测
+
+```shell
+# mac 通过 Homebrew 安装 JMeter
+$ brew install jmeter
+$ brew install jmeter --with-plugins # 可选
+$ jmeter 启动GUI
+# 线程组->Add->Sampler->HTTP Request
+```
+
+- 异常
+
+```
+com.netflix.client.ClientException: Load balancer does not have available server for client
+```
+
+```yaml
+eureka:
+  client:
+    fetch-registry: false # 将 false 改为 true 默认为 true
+```
+
+### 服务降级
+
+当前服务不可用了，使用服务降级，调用兜底方案。既可以放在消费端，也可以放在服务端，但是一般放在消费端。
+
+- 服务端
+
+```java
+// 处理方法注解
+@HystrixCommand(fallbackMethod = "备用处理的方法[需要自己手写]", commandProperties = {
+            @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "3000")
+    })
+```
+
+```java
+// 主启动类注解
+@EnableCircuitBreaker
+```
+
+- 消费端
+
+```yaml
+# yaml 文件
+feign:
+  hystrix:
+    enabled: true
+```
+
+```java
+// 主启动类
+@EnableHystrix
+// 方法配置使用 @HystrixCommand 注解
+```
+
+以上方法每个业务方法都存在一个兜底方法，代码冗余，要将统一的和自定义的进行分开隔离。
+
+- 代码冗余解决方法
+
+```java
+// 在方法上加 @HystrixCommand 注解
+@HystrixCommand
+public String paymentInfoTimeOut(@PathVariable("id") Integer id) {
+    int a = 10 / 0;
+    return paymentHystrixService.paymentInfo_TimeOut(id);
+}
+
+// 在类上加 @DefaultProperties(defaultFallback = "paymentTimeoutFallbackMethod") 注解
+// 需要自定义 fallback 方法
+```
+
+- 代码耦合度高解决办法
+
+为 `Feign` 客户端定义的接口添加一个服务降级处理的实现类即可实现解耦。
+
+可能要面对的异常：运行时异常，请求超时，服务器宕机。
+
+```java
+// 实现类上加 @Component 注解
+// 接口上加
+@FeignClient(value = "微服务名称", fallback = 实现类名称.class)
+```
+
+### 服务熔断
+
+| 熔断类型 |                             描述                             |
+| :------: | :----------------------------------------------------------: |
+| 熔断打开 | 请求不再调用当前服务,内部设置一般为MTTR(平均故障处理时间),当打开长达导所设时钟则进入半熔断状态 |
+| 熔断关闭 |                 熔断关闭后不会对服务进行熔断                 |
+| 熔断半开 | 部分请求根据规则调用当前服务,如果请求成功且符合规则则认为当前服务恢复正常,关闭熔断 |
+
+![img](https://martinfowler.com/bliki/images/circuitBreaker/state.png)
+
+[Circuit Breaker - Martin Fowler](https://martinfowler.com/bliki/CircuitBreaker.html)
+
+断路->自检->重试->恢复
+
+```java
+// Service
+@HystrixCommand(fallbackMethod = "paymentCircuitBreaker_fallback", commandProperties = {
+    @HystrixProperty(name = "circuitBreaker.enabled", value = "true"),// 是否开启断路器
+    @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold", value = "10"),// 请求次数
+    @HystrixProperty(name = "circuitBreaker.sleepWindowInMilliseconds", value = "10000"),// 时间窗口期/时间范文
+    @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage", value = "60")// 失败率达到多少后跳闸
+})
+public String paymentCircuitBreaker(@PathVariable("id") Integer id) {
+    if (id < 0)
+        throw new IllegalArgumentException("*****id不能是负数");
+    String serialNumber = IdUtil.simpleUUID();
+    return Thread.currentThread().getName() + "\t" + "调用成功,流水号:" + serialNumber;
+}
+
+public String paymentCircuitBreaker_fallback(@PathVariable("id") Integer id) {
+    return "id 不能负数,请稍后重试,o(╥﹏╥)o id:" + id;
+}
+// Controller
+@GetMapping("/circuit/{id}")
+@HystrixCommand
+public String paymentCircuitBreaker(@PathVariable("id") Integer id) {
+    String result = paymentService.paymentCircuitBreaker(id);
+    log.info("***result:" + result);
+    return result;
+}
+```
+
+### 服务限流-推迟到Sentinel部分
+
+### Hystrix工作流程
+
+[How It Works - Hystrix Wiki](https://github.com/Netflix/Hystrix/wiki/How-it-Works)
+
+![img](https://raw.githubusercontent.com/wiki/Netflix/Hystrix/images/hystrix-command-flow-chart.png)
+
+## 服务监控HystrixDashboard
+
+```java
+// 添加相关依赖
+// 配置 yml
+// 主启动类上添加注解
+@EnableHystrixDashboard
+```
+
+```java
+// http://localhost:8001/hystrix.stream
+
+
+// 在被监控的微服务的主启动类里添加
+/**
+* 此配置是为了服务监控而配置，与服务容错本身无观，springCloud 升级之后的坑
+* ServletRegistrationBean因为springboot的默认路径不是/hystrix.stream
+* 只要在自己的项目中配置上下面的servlet即可
+*
+* @return
+*/
+@Bean
+public ServletRegistrationBean getServlet() {
+    HystrixMetricsStreamServlet streamServlet = new HystrixMetricsStreamServlet();
+    ServletRegistrationBean<HystrixMetricsStreamServlet> registrationBean = new ServletRegistrationBean<>(streamServlet);
+    registrationBean.setLoadOnStartup(1);
+    registrationBean.addUrlMappings("/hystrix.stream");
+    registrationBean.setName("HystrixMetricsStreamServlet");
+    return registrationBean;
+}
 ```
 
