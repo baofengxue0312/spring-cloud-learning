@@ -403,3 +403,122 @@ public ServletRegistrationBean getServlet() {
 }
 ```
 
+# 服务网关-Gateway篇
+
+## 概述
+
+三大核心概念：路由，断言，过滤器。
+
+## Spring Cloud Gateway 特性
+
+- 动态路由: 能够匹配任何请求属性
+- 可以对路由指定 Predicate(断言) 和 Filter(过滤器)
+- 基成Hystrix断路器功能
+- 集成Spring Cloud服务发现功能
+- 易于编写的Predicate和Filter
+- 请求限流功能
+- 路径重写
+
+## 路由跳转
+
+### `yaml` 配置式
+
+```yaml
+spring:
+  application:
+    name: cloud-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: payment_route # 路由的id,没有规定规则但要求唯一,建议配合服务名
+          uri: http://localhost:8001
+          # uri: lb://cloud-payment-service # 匹配后提供服务的路由地址
+          predicates:
+            - Path=/payment/get/** # 断言 路径相匹配的进行路由
+        - id: payment_route2
+          uri: http://localhost:8001
+          # uri: lb://cloud-payment-service
+          predicates:
+            - Path=/payment/lb/** #断言,路径相匹配的进行路由
+```
+
+### 硬编码式
+
+```java
+@Configuration
+public class Gateway {
+    @Bean
+    public RouteLocator customRouteLocator(RouteLocatorBuilder routeLocatorBuilder) {
+        RouteLocatorBuilder.Builder routes = routeLocatorBuilder.routes();
+        // 仍然是三个参数 "custom_path" 是id
+        // route -> route.path("/guonei") 是 Predicate
+        // uri("http://news.baidu.com/guonei") 是 uri
+        routes.route("custom_path",
+                     route -> route.path("/guonei")
+                     .uri("http://news.baidu.com/guonei")).build();
+        return routes.build();
+    }
+}
+```
+
+## 动态路由
+
+```yaml
+# 添加
+spring:
+  application:
+    name: cloud-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: payment_route # 路由的id 没有规定规则但要求唯一,建议配合服务名
+          # uri: http://localhost:8001
+          uri: lb://cloud-payment-service # lb://serviceName 是SpringCloud提供的负载均衡
+          predicates:
+            - Path=/payment/get/** # 断言 路径相匹配的进行路由
+```
+
+## Predicate
+
+[使用方式 - Spring Cloud Gateway Predicate](https://cloud.spring.io/spring-cloud-static/spring-cloud-gateway/2.2.2.RELEASE/reference/html/#gateway-request-predicates-factories)
+
+![网关启动控制台输出信息](https://tva1.sinaimg.cn/large/007S8ZIlly1ge54cudfkbj31fk0n6jy8.jpg)
+
+![RoutePredicateFactory](https://tva1.sinaimg.cn/large/007S8ZIlly1ge54k9pmpuj33oe0kojte.jpg)
+
+## Filter
+
+[使用方式 - Spring Cloud Gateway Filter](https://cloud.spring.io/spring-cloud-static/spring-cloud-gateway/2.2.2.RELEASE/reference/html/#gatewayfilter-factories)
+
+### 自定义 Filter
+
+实现 `GlobalFilter, Ordered` 接口并重写 `filter` 方法
+
+```java
+@Component
+@Slf4j
+public class MyGlobalFilter implements GlobalFilter, Ordered {
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        log.info("come in global filter: {}", new Date());
+        ServerHttpRequest request = exchange.getRequest();
+        String uname = request.getQueryParams().getFirst("uname");
+        if (uname == null) {
+            log.info("用户名为null，非法用户");
+            exchange.getResponse().setStatusCode(HttpStatus.NOT_ACCEPTABLE);
+            return exchange.getResponse().setComplete();
+        }
+        // 放行
+        return chain.filter(exchange);
+    }
+
+    @Override
+    public int getOrder() {
+        return 0;
+    }
+}
+```
+
