@@ -1,9 +1,9 @@
-# S项目概览
+# 项目概览
 ![Cloud 升级迭代](https://tva1.sinaimg.cn/large/007S8ZIlly1ge3hl72apwj31gr0u044b.jpg)
 
 - 尚硅谷《SpringCloud第二季-周阳》学习笔记
-
 - 2020-04-22-至今：迅速熟悉相关基础理论
+- 在迅速熟悉相关技术理论后将分块整理各部分的使用方式，具体实现。
 
 # 基本服务模块
 `cloud-provider-payment8001`: 支付服务 
@@ -681,3 +681,96 @@ $ curl -X POST "http://localhost:配置中心的端口号/actuator/bus-refresh/{
 $ curl -X POST "http://localhost:3344/actuator/bus-refresh/config-client:3355"
 ```
 
+# 消息驱动-Stream篇
+
+## 概述
+
+[Spring Cloud Stream Documentation](https://cloud.spring.io/spring-cloud-static/spring-cloud-stream/3.0.4.RELEASE/reference/html/index.html)
+
+### 是什么
+
+屏蔽底层消息中间件的差异，降低切换成本，统一消息的编程模型。
+
+### Spring Cloud Stream
+
+Spring Cloud Stream 是一个构建消息驱动微服务的框架。
+
+- 应用程序通过 `inputs` 或者 `outputs` 来与 Spring Cloud Stream 中`binder`对象交互。
+- 通过配置来`binding`，而 Spring Cloud Stream 的`binder`对象负责与消息中间件交互。
+- 通过使用`Spring Integration`来连接消息代理中间件以实现消息事件驱动。
+-  Spring Cloud Stream 为一些供应商的消息中间件产品提供了个性化的自动化配置实现，引用了发布-订阅、消费组、分区的三个核心概念。
+- 目前(2020-04-25)仅支持`RabbitMQ,Kafka`
+
+### 标准MQ
+
+- 生产者-消费者之间靠 **消息(Message)** 媒介传递信息内容
+- 消息必须走特定的**通道(Channel)**
+- **消息通道(MeeageChannel)**的子接口`SubscribableChannel`，由`MessageHandler`消息处理器所订阅
+
+### Binder
+
+- 通过定义Binder作为中间层，完美地实现了 **应用程序与消息中间件细节之间的隔离**
+- 通过向应用程序暴露统一的`Channel`通道，使得应用程序不需要再考虑各种不同的消息中间件实现
+
+### Application Model与API
+
+![SCSt with binder](https://raw.githubusercontent.com/spring-cloud/spring-cloud-stream/master/docs/src/main/asciidoc/images/SCSt-with-binder.png)
+
+
+
+|       组成        |                                                         说明 |
+| :---------------: | -----------------------------------------------------------: |
+|   `Middleware`    |                            中间件，目前只支持RabbitMQ和Kafka |
+|     `Binder`      | Binder是应用于消息中间件之间的封装，目前实行了Kafka和RabbitMQ的Binder，通过Binder可以很方便的连接中间件，可以动态的改变消息类型（对应于Kafka的topic，RabbitMQ的exchange），这些都可以通过配置文件来实现 |
+|     `@Input`      |     注解标识输入通道，通过该输入通道接收到的消息进入应用程序 |
+|     `@Output`     |         注解标识输出通道，发布的消息将通过该通道离开应用程序 |
+| `@StreamListener` |                         监听队列，用于消费者的队列的消息接收 |
+| `@EnableBinding`  |                            指信道channel和exchange绑定在一起 |
+
+### Programming Model
+
+![SCSt overview](https://raw.githubusercontent.com/spring-cloud/spring-cloud-stream/master/docs/src/main/asciidoc/images/SCSt-overview.png)
+
+![SpringCloud Stream--编码API和常用注解- 柚子社区](https://uzshare.com/_p?https://img-blog.csdnimg.cn/20200320114343995.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2NvbGRfX19wbGF5,size_16,color_FFFFFF,t_70)
+
+- Binder：方便连接中间件，屏蔽差异
+- Channel：通道，是队列Queue的一种抽象，在消息通讯系统中就是实现存储和转发的媒介，通过Channel对队列进行配置。
+- Source、Sink：简单的可理解为参照对象是SpringCloud Stream自身，从Stream发布消息就是输出，接受消息就是输入。
+
+## 消息驱动之生产者
+
+`cloud-stream-rabbitmq-provider8801`
+
+## 消息驱动之消费者
+
+`cloud-eureka-server7001`
+
+`cloud-stream-rabbitmq-provider8801`
+
+`cloud-stream-rabbitmq-consumer8802`
+
+## 分组消费与持久化
+
+`cloud-eureka-server7001`
+
+`cloud-stream-rabbitmq-provider8801`
+
+`cloud-stream-rabbitmq-consumer8802`
+
+`cloud-stream-rabbitmq-consumer8803`
+
+### 重复消费
+
+两个问题：重复消费，消息持久化。
+
+设想一个场景，订单系统做集群部署，都会从`RabbitMQ`中获取订单信息，加入一个订单被两个服务获取到，那么一个人购买了一个东西，但是却产生了两条购买记录，对买家来说是好事，但是对卖家来说...
+
+- 重复消费原因：默认分组 `group` 是不同的，组流水号不一样，被认为不同组，可以消费。
+
+这时可以使用 `Spring Cloud Stream` 的消息分组来解决，在`Stream`中处于同一个`group`中的多个消费者是竞争关系，就能够保证消息只会被其中一个服务消费一次。
+
+只需要在`application.yml`中修改配置即可，即`spring.cloud.stream.bindings.input.group` 设置同一个名称。
+
+### 持久化
+
+如果消费者机器下线了，但是生产者在消费者下线期间又生产了消息，那消费者及其上线后会消费在下线期间产生的消息。
