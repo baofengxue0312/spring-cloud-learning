@@ -774,3 +774,37 @@ Spring Cloud Stream 是一个构建消息驱动微服务的框架。
 ### 持久化
 
 如果消费者机器下线了，但是生产者在消费者下线期间又生产了消息，那消费者及其上线后会消费在下线期间产生的消息。
+
+# 分布式请求链路追踪-Sleuth篇
+
+## 概述
+
+[Spring Cloud Sleuth Documentation](https://cloud.spring.io/spring-cloud-static/spring-cloud-sleuth/2.2.2.RELEASE/reference/html/#introduction)
+
+### 背景
+
+在微服务框架中，一个由客户端发起的请求在后端系统中会经过多个不同的服务节点来协同产生最后的请求结果，每一个前端请求都会形成一条复杂的分布式服务调用链路，链路中的任何一环出现高延时或者错误都会引起整个请求的失败。
+
+```xml
+<!--包含了sleuth+zipkin-->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-zipkin</artifactId>
+</dependency>
+```
+
+## 追踪
+
+`cloud-eureka-server7001`
+
+`cloud-eureka-server7002`
+
+`cloud-provider-payment8001`
+
+`cloud-consumer-order80`
+
+```shell
+# java -jar zipkin-server...jar
+# localhost:9411/zipkin
+```
+

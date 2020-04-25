@@ -25,7 +25,7 @@ import java.util.List;
 public class OrderController {
 
     // private static final String PAYMENT_URL = "http://localhost:8001";
-    private static final String PAYMENT_URL = "http://CLOUD-PAYMENT-SERVICE";
+    private static final String PAYMENT_URL = "http://CLOUD-PAYMENT-SERVICE"; // 集群模式下才有效，要不然会报异常
 
     @Resource
     private RestTemplate restTemplate;
@@ -43,6 +43,7 @@ public class OrderController {
 
     @GetMapping("/payment/get/{id}")
     public CommonResult<Payment> getPayment(@PathVariable("id") Long id) {
+        System.out.println(PAYMENT_URL);
         return restTemplate.getForObject(PAYMENT_URL + "/payment/get/" + id, CommonResult.class);
     }
 
@@ -59,12 +60,16 @@ public class OrderController {
     @GetMapping("/payment/lb")
     public String getPaymentLB() {
         List<ServiceInstance> instanceList = discoveryClient.getInstances("CLOUD-PAYMENT-SERVICE");
-        if (instanceList == null || instanceList.size() <= 0) {
-            return null;
-        }
+        if (instanceList == null || instanceList.size() <= 0)
+            return "";
         ServiceInstance serviceInstance = loadBalancer.instances(instanceList);
         URI uri = serviceInstance.getUri();
         return restTemplate.getForObject(uri + "/payment/lb", String.class);
+    }
+
+    @GetMapping("/payment/zipkin")
+    public String paymentZipkin() {
+        return restTemplate.getForObject("http://localhost:8001/payment/zipkin", String.class);
     }
 
 }

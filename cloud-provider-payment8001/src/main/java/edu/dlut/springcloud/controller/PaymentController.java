@@ -72,7 +72,7 @@ public class PaymentController {
         return serverPort;
     }
 
-    @GetMapping(value = "/payment/feign/timeout")
+    @GetMapping(value = "/feign/timeout")
     public String paymentFeignTimeout() {
         //暂停几秒钟线程
         try {
@@ -81,6 +81,11 @@ public class PaymentController {
             e.printStackTrace();
         }
         return serverPort;
+    }
+
+    @GetMapping("/zipkin")
+    public String paymentZipkin() {
+        return "Hello Zipkin";
     }
 
 }
