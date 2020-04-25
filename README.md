@@ -615,3 +615,69 @@ $ curl -X POST "http://localhost:3355/actuator/refresh"
 假如有多个微服务客户端 3355、3366、3377...每个服务都要执行一次 `POST` 请求吗？能不能采用 **广播** 的形式？达到一次通知，处处生效的目的？
 
 但是如果实现了广播，那假如有100个微服务，只修改了一个配置文件，其它的99个也要接收通知吗？
+
+# 消息总线-Bus篇
+
+## 概述
+
+### 什么是总线？
+
+在微服务架构的系统中，通常会使用 **轻量级的消息代理** 来构建一个 **共用的消息主题**，并让系统中所有的微服务实例都连接上来。由于**该主题中产生的消息会被所有实例监听和消费，所以称为消息总线**。在总线上的各个实例，都可以方便地广播一些需要让其他连接在该主题上的实例都知道的消息。
+
+### 基本原理
+
+`ConfigClient`实例都监听`MQ`中同一个`Topic(Spring Cloud Bus)`。当一个服务刷新数据的时候，它会把这个信息放入到 `Topic` 中，这样其它监听同一`Topic`的服务就能得到通知，然后去更新自身的配置。
+
+### 消息代理种类
+
+- Bus 支持两种消息代理: `RabbitMQ`和`Kafka`
+
+## Bus动态刷新全局广播的设计思想和选型
+
+- 利用消息总线触发一个客户端`/bus/refresh`，从而刷新所有客户端的配置。
+- 利用消息总线触发一个服务端 `ConfigServer` 的 `/bus/refresh`端点，从而刷新所有客户端的配置。
+- 应该选择第二种作为技术选型。
+
+3344 的改动
+
+```xml
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-bus-amqp</artifactId>
+</dependency>
+```
+
+```yaml
+rabbitmq:
+  host: localhost
+  port: 5672
+  username: guest
+  password: guest
+  
+# 暴露bus刷新配置的端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "bus-refresh"
+```
+
+一次请求，处处生效。
+
+```shell
+$ curl -X POST "http://localhost:3344/actuator/bus-refresh"
+```
+
+## Bus定点通知
+
+```shell
+$ curl -X POST "http://localhost:配置中心的端口号/actuator/bus-refresh/{destination}"
+# /bus/refresh 请求不再发送到具体的服务实例上，而是发给 Config Server 并通过 destination 参数类指定需要更新配置的服务或实例
+# destination 是指项目 yaml 配置文件中的 spring.application.name:server.port
+```
+
+```shell
+# 只通知 3355
+$ curl -X POST "http://localhost:3344/actuator/bus-refresh/config-client:3355"
+```
+
