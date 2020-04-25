@@ -1,4 +1,4 @@
-# 项目概览
+# S项目概览
 ![Cloud 升级迭代](https://tva1.sinaimg.cn/large/007S8ZIlly1ge3hl72apwj31gr0u044b.jpg)
 
 - 尚硅谷《SpringCloud第二季-周阳》学习笔记
@@ -522,3 +522,96 @@ public class MyGlobalFilter implements GlobalFilter, Ordered {
 }
 ```
 
+# 分布式配置中心
+
+## 概述
+
+[Spring Cloud Config - 官网](https://cloud.spring.io/spring-cloud-config/reference/html/)
+
+### 是什么
+
+每一个微服务都带着一个自己的 `application.yml`，如果项目里有几百个微服务配置文件会出现什么问题呢？
+
+Spring Cloud Config 为微服务架构中的微服务提供集中化的外部配置支持，配置服务器为各个不同微服务应用的所有环境提供了一个中心化的外部支持。
+
+### 能干什么
+
+- 集中管理配置文件
+- 不同环境不同配置，动态化的配置更新，分环境部署。
+- 运行期间动态调整配置，不再需要在每个服务部署的机器上编写配置文件
+- 当配置发生变动时，服务不需要重启即可感知到配置的变化并应用新的配置。
+- 将配置信息以REST接口的形式暴露
+
+## 服务端与客户端
+
+### 服务端
+
+```yaml
+/{application}/{profile}[/{label}]
+/{application}-{profile}.yml
+/{label}/{application}-{profile}.yml
+/{application}-{profile}.properties
+/{label}/{application}-{profile}.properties
+```
+
+```yaml
+spring:
+  application:
+    name: cloud-config-center
+  cloud:
+    config:
+      server:
+        git:
+          skipSslValidation: true # 跳过ssl认证
+          uri: https://github.com/raymond-zhao/spring-cloud-config.git
+          search-paths:
+            - spring-cloud-config
+      label: master
+```
+
+```java
+// 主启动类
+@EnableConfigServer
+```
+
+### 客户端
+
+```yaml
+# bootstrap.yml
+```
+
+## 动态刷新之手动版
+
+在客户端 3355 微服务中修改
+
+```xml
+<!-- 添加 actuator 依赖 -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+```yaml
+# 暴露监控端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+```
+
+```java
+// Controller 添加
+@RefreshScope
+```
+
+做完上述步骤之后，客户端还是不会自动刷新，需要手动发起 `POST` 请求
+
+```shell
+$ curl -X POST "http://localhost:3355/actuator/refresh"
+```
+
+假如有多个微服务客户端 3355、3366、3377...每个服务都要执行一次 `POST` 请求吗？能不能采用 **广播** 的形式？达到一次通知，处处生效的目的？
+
+但是如果实现了广播，那假如有100个微服务，只修改了一个配置文件，其它的99个也要接收通知吗？
