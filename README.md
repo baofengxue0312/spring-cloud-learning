@@ -842,7 +842,7 @@ $ sh startup.sh -m standalone
 $ sh shutdown.sh
 ```
 
-## Nacos服务注册
+# Nacos服务注册
 
 内置` Ribbon `负载均衡，需要结合`RestTemplate`使用，以及 `@LoadBalanced`注解
 
@@ -857,6 +857,8 @@ $ sh shutdown.sh
 ***NACOS支持 AP 和 CP 的切换***
 
 ![2.png](https://ucc.alicdn.com/pic/developer-ecology/f22beabffa4646dab0497bfc6f2654f2.png)
+
+# Nacos配置中心
 
 ## Nacos配置中心-基础配置
 
@@ -918,11 +920,11 @@ spring:
         namespace: 11586938-ae5d-4332-b41a-603a3f37420a
 ```
 
-## Nacos集群和持久化配置
+# Nacos集群和持久化配置
 
 [Nacos 集群 - 官方文档](https://nacos.io/zh-cn/docs/cluster-mode-quick-start.html)
 
-### 持久化配置解释
+## 持久化配置解释
 
 [Nacos部署 - 官方文档](https://nacos.io/zh-cn/docs/deployment.html)
 
@@ -1005,7 +1007,8 @@ $ vi startup.sh
 - 修改`nginx`配置
 
 ```shell
-$ brew install nginx
+# $ yun install nginx # centOS
+$ brew install nginx # mac
 $ vi /usr/local/etc/nginx/nginx.conf
 # 添加 upstream cluster
 # 修改监听端口
@@ -1044,10 +1047,45 @@ $ sh startup.sh -p 3333
 $ sh startup.sh -p 4444
 $ sh startup.sh -p 5555
 $ ps -ef|grep nacos|grep -v grep|wc -l # 查看启动的nacos数量
-$ cd /usr/local/Cellar/nginx/bin
+$ cd /usr/local/Cellar/nginx/1.17.10/bin
 $ ./nginx -c /usr/local/etc/nginx/nginx.conf
 $ ps -ef | grep nginx # 查看 Nginx 启动情况
 # 浏览器访问 localhost:1111/nacos/#/login
 # 登录之后所进行的操作，比如添加配置项，启动微服务注册，将会被记录到 MySQL 数据库中。
 ```
+
+# Sentinel篇
+
+## 概述
+
+[Sentinel - Alibaba GitHub Wiki](https://github.com/alibaba/Sentinel/wiki/%E4%BB%8B%E7%BB%8D)
+
+![Sentinel-features-overview](https://user-images.githubusercontent.com/9434884/50505538-2c484880-0aaf-11e9-9ffc-cbaaef20be2b.png)
+
+Sentinel 分为两个部分:
+
+- 核心库（Java 客户端）不依赖任何框架/库，能够运行于所有 Java 运行时环境，同时对 Dubbo / Spring Cloud 等框架也有较好的支持。
+- 控制台（Dashboard）基于 Spring Boot 开发，打包后可以直接运行，不需要额外的 Tomcat 等应用容器。
+
+下载`jar`包 [GitHub Releases](https://github.com/alibaba/Sentinel/releases)，`java - jar xxxx.jar`
+
+`cloudalibaba-sentinel-service8401`
+
+`java -jar sentinel-dashboard-1.7.2.jar`
+
+`sh startup.sh -m standalone`
+
+> `Sentinel`采用懒加载机制，需要手动发起一次请求才可以被监控到，否则`Sentinel Dashboard`为空。
+
+## 流控规则
+
+## 降级规则
+
+## HotKey
+
+## `@SentinelResource`
+
+## 熔断规则
+
+## 持久化规则
 
