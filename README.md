@@ -1089,3 +1089,107 @@ Sentinel 分为两个部分:
 
 ## 持久化规则
 
+# 分布式事务-Seata篇
+
+## 分布式事务的问题
+
+- 全局数据一致性问题
+
+## 概述
+
+[Seata 官网](https://seata.io/zh-cn/)
+
+## Seata Server配置
+
+- `file.conf`
+
+```
+service {
+  #vgroup->rgroup
+  vgroup_mapping.my_test_tx_group = "fsp_tx_group" #### 改成自定义的组名
+  #only support single node
+  default.grouplist = "127.0.0.1:8091"
+  #degrade current not support
+  enableDegrade = false
+  #disable
+  disable = false
+  #unit ms,s,m,h,d represents milliseconds, seconds, minutes, hours, days, default permanent
+  max.commit.retry.timeout = "-1"
+  max.rollback.retry.timeout = "-1"
+}
+
+store {
+  mode = "db"
+  
+  ## database store
+  db {
+    datasource = "dbcp"
+    ## mysql/oracle/h2/oceanbase etc.
+    db-type = "mysql"
+    driver-class-name = "com.mysql.jdbc.Driver"
+    url = "jdbc:mysql://127.0.0.1:3306/seata"
+    user = "root"  ########修改成自己的
+    password = "root" ########修改成自己的
+    min-conn = 1
+    max-conn = 3
+    global.table = "global_table"
+    branch.table = "branch_table"
+    lock-table = "lock_table"
+    query-limit = 100
+  }
+}
+```
+
+- 在`MySQL`建库`seata`
+- 在`seata`建表，执行 `conf/db_store.sql`
+- 修改`registry.conf`
+
+```
+registry {
+  # file 、nacos 、eureka、redis、zk、consul、etcd3、sofa
+  type = "nacos"  ##########修改为 nacos
+
+  nacos {
+    serverAddr = "localhost:8848" ###### 为 nacos 修改连接配置
+    namespace = ""
+    cluster = "default"
+  }
+}
+```
+
+- 启动`nacos`
+- 启动`seata`
+
+## Seata业务数据库配置
+
+这里会创建三个服务，一个订单服务，一个库存服务，一个银行账户服务。
+
+- 当用户下单时，会在订单服务中创建一个订单，然后通过远程调用库存服务来扣减下单商品的库存。
+- 再通过远程调用账户来扣除用户账户中的金额。
+- 最后在订单服务中修改订单状态为已完成。
+- 该操作跨越三个数据库，有两次远程调用，会产生分布式事务问题
+
+> 下面开始创建业务数据库
+
+- 执行项目中的`seata.sql`文件，执行后会生成三个数据库，订单、库存、银行账户，以及每个数据库中的基本表即回滚日志表。
+
+- 启动`nacos`单机模式
+- 启动`seata`
+
+- 启动`seata-order-service2001`
+
+- 启动`seata-storage-service2002`
+- 启动`seata-account-service2003`
+
+```shell
+localhost:2001/order/create?userId=1&productId=1&count=10&money=100
+```
+
+> 天坑: 项目中 `resources/file.conf`与`seata/conf/file.conf`有一点些许的不同，如果直接将`seata/conf/file.conf`复制进项目的话，会报 Netty 连接失败的问题。
+
+![file.conf](https://tva1.sinaimg.cn/large/007S8ZIlly1ge7k0ssko8j31ea0lyb29.jpg)
+
+## Seata原理
+
+- 另行查阅
+
