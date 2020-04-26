@@ -1,4 +1,5 @@
 # 项目概览
+
 ![Cloud 升级迭代](https://tva1.sinaimg.cn/large/007S8ZIlly1ge3hl72apwj31gr0u044b.jpg)
 
 - 尚硅谷《SpringCloud第二季-周阳》学习笔记
@@ -6,10 +7,12 @@
 - 在迅速熟悉相关技术理论后将分块整理各部分的使用方式，具体实现。
 
 # 基本服务模块
+
 `cloud-provider-payment8001`: 支付服务 
 `cloud-consumer-order80`: 消费者订单服务
 
 # 服务注册与发现
+
 ## Eureka
 
 已停更，日后不再推荐使用。
@@ -24,7 +27,9 @@
 ## Consul
 
 ## Nacos 未进行
+
 ## 分布式系统三大特点 CAP
+
 C: Consistency 强一致性
 A: Availability 可用性
 P: Partition Tolerance 分区容错性
@@ -698,7 +703,7 @@ Spring Cloud Stream 是一个构建消息驱动微服务的框架。
 - 应用程序通过 `inputs` 或者 `outputs` 来与 Spring Cloud Stream 中`binder`对象交互。
 - 通过配置来`binding`，而 Spring Cloud Stream 的`binder`对象负责与消息中间件交互。
 - 通过使用`Spring Integration`来连接消息代理中间件以实现消息事件驱动。
--  Spring Cloud Stream 为一些供应商的消息中间件产品提供了个性化的自动化配置实现，引用了发布-订阅、消费组、分区的三个核心概念。
+- Spring Cloud Stream 为一些供应商的消息中间件产品提供了个性化的自动化配置实现，引用了发布-订阅、消费组、分区的三个核心概念。
 - 目前(2020-04-25)仅支持`RabbitMQ,Kafka`
 
 ### 标准MQ
@@ -806,5 +811,243 @@ Spring Cloud Stream 是一个构建消息驱动微服务的框架。
 ```shell
 # java -jar zipkin-server...jar
 # localhost:9411/zipkin
+```
+
+# Spring Cloud Alibaba
+
+## 概述
+
+[Spring Cloud Alibaba - GitHub](https://github.com/alibaba/spring-cloud-alibaba)
+
+[Spring Cloud Alibaba - Documentation](https://spring.io/projects/spring-cloud-alibaba)
+
+## Nacos
+
+[Nacos - 官方中文文档](https://nacos.io/zh-cn/docs/what-is-nacos.html)
+
+***在mac或者其他类Unix系统上启动nacos时不会再出现 Nacos 的小图案了！！！***
+
+```shell
+/Library/Java/JavaVirtualMachines/jdk1.8.0_201.jdk/Contents/Home/bin/java  -Xms512m -Xmx512m -Xmn256m -Dnacos.standalone=true -Djava.ext.dirs=/Library/Java/JavaVirtualMachines/jdk1.8.0_201.jdk/Contents/Home/jre/lib/ext:/Library/Java/JavaVirtualMachines/jdk1.8.0_201.jdk/Contents/Home/lib/ext -Xloggc:/Users/raymond/Downloads/nacos/logs/nacos_gc.log -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCTimeStamps -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=100M -Dloader.path=/Users/raymond/Downloads/nacos/plugins/health,/Users/raymond/Downloads/nacos/plugins/cmdb,/Users/raymond/Downloads/nacos/plugins/mysql -Dnacos.home=/Users/raymond/Downloads/nacos -jar /Users/raymond/Downloads/nacos/target/nacos-server.jar  --spring.config.location=classpath:/,classpath:/config/,file:./,file:./config/,file:/Users/raymond/Downloads/nacos/conf/ --logging.config=/Users/raymond/Downloads/nacos/conf/nacos-logback.xml --server.max-http-header-size=524288
+nacos is starting with standalone
+nacos is starting，you can check the /Users/raymond/Downloads/nacos/logs/start.out
+```
+
+***切记几种启动方式的区别，默认开启是集群模式，根据情况使用。***
+
+```shell
+# localhost:8848/nacos
+# 默认账号密码都是 nacos
+$ sh startup.sh -m standalone
+$ sh shutdown.sh
+```
+
+## Nacos服务注册
+
+内置` Ribbon `负载均衡，需要结合`RestTemplate`使用，以及 `@LoadBalanced`注解
+
+`cloudalibaba-provider-payment9001`
+
+`cloudalibaba-provider-payment9002`
+
+`cloudalibaba-consumer-nacos-order83`
+
+[Nacos与其他注册中心对比 - 阿里云](https://developer.aliyun.com/article/738413)
+
+***NACOS支持 AP 和 CP 的切换***
+
+![2.png](https://ucc.alicdn.com/pic/developer-ecology/f22beabffa4646dab0497bfc6f2654f2.png)
+
+## Nacos配置中心-基础配置
+
+[Nacos Spring Cloud - 官方文档](https://nacos.io/zh-cn/docs/quick-start-spring-cloud.html)
+
+`cloudalibaba-config-nacos-client3377`
+
+新增 `bootstrap.yml, application.yml`
+
+`nacos`配置管理中添加的配置文件后缀名只能是`yaml`，而不能是`yml`.
+
+```yaml
+# 配置文件名格式
+${spring.application.name}-${spring.profile.active}.${spring.cloud.nacos.config.file-extension}
+```
+
+## Nacos配置中心-分类配置
+
+### Namespace、Group、Data Id三者关系
+
+![Namespace、Group、Data Id三者关系](https://tva1.sinaimg.cn/large/007S8ZIlly1ge6ettc0g7j30rq0ein04.jpg)
+
+`Namespace`默认是`public`，`Namespace`主要用来实现隔离，假如有三个环境：开发、测试、生产，那么可以创建三个`Namespace`，不同的`Namespace`之间是相互隔离的。
+
+`Group`默认是`Default_Group`,`Group`可以把不同的微服务划分到同一个分组
+
+`Service`是微服务，一个`Service`可以包含多个`Cluster`，`Nacos Cluster`默认是`Default`，是对指定微服务的一个虚拟化分。
+
+`Instance`是微服务的实例。
+
+### Data Id配置
+
+```yaml
+# spring.profiles.active 即是 Data Id
+spring:
+  profiles:
+    active: dev # 开发环境
+#    active: test # 测试环境
+#    active: info # 开发环境
+```
+
+### Group配置
+
+```yaml
+spring:
+  cloud:
+    nacos:
+      config:
+        group: DEV_GROUP
+```
+
+### Namespace配置
+
+```yaml
+spring:
+  cloud:
+    nacos:
+      config:
+        namespace: 11586938-ae5d-4332-b41a-603a3f37420a
+```
+
+## Nacos集群和持久化配置
+
+[Nacos 集群 - 官方文档](https://nacos.io/zh-cn/docs/cluster-mode-quick-start.html)
+
+### 持久化配置解释
+
+[Nacos部署 - 官方文档](https://nacos.io/zh-cn/docs/deployment.html)
+
+- `Nacos`默认自带的是嵌入式数据库`derby`
+- `derby`到`MySQL`切换配置步骤
+  - `nacos-server/nacos/conf`找到`nacos-sql`脚本，到`MySQL`数据库中执行。
+  - 修改`conf/application.properties`文件，增加支持`MySQL`数据源配置(目前只支持`MySQL`)，添加`MySQL`数据源的相关信息。
+
+- 重新启动`Nacos`，可以看到是个全新的空记录界面。
+
+## Nacos集群配置
+
+连接`MySQL`数据库通过`nginx`监听端口号`1111`，然后进行代理转发到集群的三台`nacos`服务器上。
+
+- `/nacos/conf`找到`nacos-sql`脚本，到`MySQL`数据库中执行，生成数据库。
+- 修改`conf/application.properties`文件，增加支持`MySQL`数据源配置(目前只支持`MySQL`)，添加`MySQL`数据源的相关信息。
+
+```properties
+spring.datasource.platform=mysql
+
+db.num=1
+db.url.0=jdbc:mysql://本机或服务器IP:3306/数据库名?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true
+db.user=填写自己的
+db.password=填写自己的
+```
+
+- 备份`conf/cluster.conf.example`到`conf/cluster.conf`用作修改文件
+
+```shell
+$ cp conf/cluster.conf.example conf/cluster.conf
+```
+
+- 修改`conf/cluster.conf`添加集群主机及端口号，建议填写本机局域网`ip`，而不要填`127.0.0.1`，`centOS`可通过`hostname -i`查看，`macOS`通过`ifconfig en0`查看。
+
+```shell
+$ vi cluster.conf
+# It is ip
+192.168.0.108:3333
+192.168.0.108:4444
+192.168.0.108:5555
+```
+
+- 备份并修改`bin/startup.sh`，增加 `-p 端口号`启动方式，默认启动方式不可传入`-p` 参数
+
+```shell
+$ vi startup.sh
+# 进入 vim 之后按下 : 输入 set nu 显示行号 在差不多54行左右
+# 在 57行 while getopts ":m:f:s:" 末尾添加 p: 表示端口的意思
+# 添加 66、67 行
+# 在134行左右处 ${JAVA} ${JAVA_OPT} 之间添加 -Dserver.port=${PORT} 表示接收端口参数
+# :wq 保存退出
+```
+
+```sh
+ 54 export SERVER="nacos-server"
+ 55 export MODE="cluster"
+ 56 export FUNCTION_MODE="all"
+ 57 while getopts ":m:f:s:p:" opt
+ 58 do
+ 59     case $opt in
+ 60         m)
+ 61             MODE=$OPTARG;;
+ 62         f)
+ 63             FUNCTION_MODE=$OPTARG;;
+ 64         s)
+ 65             SERVER=$OPTARG;;
+ 66         p)
+ 67             PORT=$OPTARG;;
+ 68         ?)
+ 69         echo "Unknown parameter"
+ 70         exit 1;;
+ 71     esac
+ 72 done
+```
+
+```sh
+134 nohup $JAVA -Dserver.port=${PORT} ${JAVA_OPT} nacos.nacos >> ${BASE_DIR}/log    s/start.out 2>&1 &
+```
+
+- 修改`nginx`配置
+
+```shell
+$ brew install nginx
+$ vi /usr/local/etc/nginx/nginx.conf
+# 添加 upstream cluster
+# 修改监听端口
+# 修改 location
+```
+
+```
+ 33     #gzip  on;
+ 34
+ 35     upstream cluster {
+ 36         server 127.0.0.1:3333;
+ 37         server 127.0.0.1:4444;
+ 38         server 127.0.0.1:5555;
+ 39     }
+ 40
+ 41     server {
+ 42         listen       1111;
+ 43         server_name  localhost;
+ 44
+ 45         #charset koi8-r;
+ 46
+ 47         #access_log  logs/host.access.log  main;
+ 48
+ 49         location / {
+ 50             #root   html;
+ 51             #index  index.html index.htm;
+ 52             proxy_pass http://cluster;
+ 53         }
+ 54    }
+```
+
+- 进入到`nacos/bin`，启动并验证
+
+```shell
+$ sh startup.sh -p 3333
+$ sh startup.sh -p 4444
+$ sh startup.sh -p 5555
+$ ps -ef|grep nacos|grep -v grep|wc -l # 查看启动的nacos数量
+$ cd /usr/local/Cellar/nginx/bin
+$ ./nginx -c /usr/local/etc/nginx/nginx.conf
+$ ps -ef | grep nginx # 查看 Nginx 启动情况
+# 浏览器访问 localhost:1111/nacos/#/login
+# 登录之后所进行的操作，比如添加配置项，启动微服务注册，将会被记录到 MySQL 数据库中。
 ```
 
